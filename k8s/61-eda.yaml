@@ -1,0 +1,51 @@
+# EDA / KEP market communication (Scala, Pekko). Source repo is
+# eegfaktura-eda-xp; the image is named eegfaktura-kep.
+#
+# OPTIONAL: no Ponton gateway ships with this stack (kepserver.url points at an
+# unused localhost:6060) and the mail-based EDA path has no credentials. The
+# service runs but external exchange is inert — which is why step 15 sets
+# "Ponton Kommunikation" to "ignorieren". Skip it if memory is tight.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: eda-data, namespace: eegfaktura}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 5Gi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: eegfaktura-eda, namespace: eegfaktura}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: eegfaktura-eda}}
+  template:
+    metadata: {labels: {app: eegfaktura-eda}}
+    spec:
+      containers:
+        - name: eda
+          image: localhost:5000/eegfaktura-kep:dev
+          imagePullPolicy: Always
+          ports:
+            - {containerPort: 9093, name: grpc}
+          volumeMounts:
+            - {name: config,  mountPath: /conf, readOnly: true}
+            # config overrides the Pekko journal to /storage/prod/journal; the
+            # default is relative and not writable in the container
+            - {name: storage, mountPath: /storage/prod}
+          resources:
+            requests: {memory: "512Mi", cpu: "150m"}
+            limits:   {memory: "1536Mi"}
+      volumes:
+        - name: config
+          configMap: {name: eda-config}
+        - name: storage
+          persistentVolumeClaim: {claimName: eda-data}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: eegfaktura-eda, namespace: eegfaktura}
+spec:
+  selector: {app: eegfaktura-eda}
+  ports:
+    - {name: grpc, port: 9093, targetPort: 9093}

@@ -1,0 +1,29 @@
+# OPTIONAL — apply only if pods cannot resolve the Keycloak hostname.
+#
+# Pods fetch JWKS from the same hostname the browser uses, because that string
+# is what Keycloak stamps into every token's `iss` claim. Normally CoreDNS
+# forwards the name to the cluster's upstream resolver, which knows it from the
+# LAN DNS record created in step 02 — and nothing here is needed.
+#
+# It IS needed when the name resolves only in /etc/hosts on your workstation:
+# CoreDNS never sees those entries, so pods get NXDOMAIN while the browser
+# works. This maps the name to the VM's own IP, so pods reach it through
+# Traefik exactly as the browser does — with the same valid certificate.
+#
+# NOT a `rewrite` to the Service: the URL is https, so a rewrite would send
+# pods to port 443 of a Service that listens on 80.
+#
+# k3s marks its coredns ConfigMap "DO NOT EDIT" but imports
+# /etc/coredns/custom/*.override into the server block, so this survives
+# restarts and k3s upgrades.  https://docs.k3s.io/advanced#coredns
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  eegfaktura.override: |
+    hosts {
+      192.168.1.50 keycloak.dev.yourdomain.com
+      fallthrough
+    }

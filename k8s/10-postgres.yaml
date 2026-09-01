@@ -1,0 +1,82 @@
+# PostgreSQL — one server, two databases (eegfaktura + keycloak).
+# Init scripts run ONCE on an empty data directory; get the env right first time
+# or the fix is deleting the PVC and redeploying.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: eegfaktura
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eegfaktura-postgresql
+  namespace: eegfaktura
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate                 # never two pods on one RWO volume
+  selector:
+    matchLabels: {app: eegfaktura-postgresql}
+  template:
+    metadata:
+      labels: {app: eegfaktura-postgresql}
+    spec:
+      # /var/run is a symlink to /run in this image, so the service-account
+      # token mount at /var/run/secrets/kubernetes.io/serviceaccount lands
+      # INSIDE our read-only /run/secrets mount and the container fails to
+      # start with "read-only file system". Postgres never calls the
+      # Kubernetes API, so decline the token.
+      automountServiceAccountToken: false
+      containers:
+        - name: postgres
+          image: localhost:5000/eegfaktura-postgresql:dev
+          imagePullPolicy: Always
+          env:
+            - {name: POSTGRES_USER,             value: "postgres"}
+            - {name: POSTGRES_DATABASE,         value: "postgres"}
+            - {name: POSTGRES_PASSWORD_FILE,    value: "/run/secrets/eegfaktura-postgres-password"}
+            - {name: DB_USERNAME,               value: "eegfaktura"}
+            - {name: DB_DATABASE,               value: "eegfaktura"}
+            - {name: DB_PASSWORD_FILE,          value: "/run/secrets/eegfaktura-db-password"}
+            - {name: KEYCLOAK_DB_USERNAME,      value: "keycloak"}
+            - {name: KEYCLOAK_DB_DATABASE,      value: "keycloak"}
+            - {name: KEYCLOAK_DB_PASSWORD_FILE, value: "/run/secrets/eegfaktura-keycloak-db-password"}
+            # recorded but inert: the image ships no locale data, so collation
+            # falls back to byte order. Kept for parity with docker-compose.
+            - {name: POSTGRES_INITDB_ARGS,      value: "--locale=de_DE:UTF8"}
+            # subdir: initdb refuses a non-empty mount point (lost+found)
+            - {name: PGDATA,                    value: "/var/lib/postgresql/data/pgdata"}
+          ports:
+            - {containerPort: 5432, name: postgres}
+          volumeMounts:
+            - {name: data,    mountPath: /var/lib/postgresql/data}
+            - {name: secrets, mountPath: /run/secrets, readOnly: true}
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "eegfaktura", "-d", "eegfaktura"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests: {memory: "512Mi", cpu: "250m"}
+            limits:   {memory: "2Gi"}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: postgres-data}
+        - name: secrets
+          secret: {secretName: eegfaktura-passwords}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eegfaktura-postgresql
+  namespace: eegfaktura
+spec:
+  selector: {app: eegfaktura-postgresql}
+  ports:
+    - {name: postgres, port: 5432, targetPort: 5432}

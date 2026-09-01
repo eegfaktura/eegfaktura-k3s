@@ -1,0 +1,14 @@
+# secrets — never commit real values
+*.secret.yaml
+*-secret.yaml
+.env
+kubeconfig
+*.key
+*.pem
+*.crt
+lego/
+
+# local tooling
+.DS_Store
+.idea/
+.vscode/

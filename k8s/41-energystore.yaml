@@ -1,0 +1,58 @@
+# Energy time-series store (Go / BadgerDB). Consumes MQTT and pulls master data
+# from the backend over gRPC.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: energystore-data, namespace: eegfaktura}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 20Gi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: eegfaktura-energystore, namespace: eegfaktura}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: eegfaktura-energystore}}
+  template:
+    metadata: {labels: {app: eegfaktura-energystore}}
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: energystore
+          image: localhost:5000/energy-store:dev
+          imagePullPolicy: Always
+          env:
+            - {name: KEYCLOAK_CONFIG,       value: "/run/secrets/eegfaktura-keycloak-json"}
+            - {name: ENERGYSTORE_MQTT_HOST, value: "tcp://eegfaktura-mosquitto:1883"}
+            # hyphen is legal in a Kubernetes env var name
+            - {name: ENERGYSTORE_SERVICES_master-server, value: "eegfaktura-backend:9092"}
+            - {name: ENERGYSTORE_PERSISTENCE_PATH,       value: "/opt/rawdata"}
+          ports:
+            - {containerPort: 8080, name: http}
+          volumeMounts:
+            - {name: secrets, mountPath: /run/secrets, readOnly: true}
+            - {name: rawdata, mountPath: /opt/rawdata}
+          readinessProbe:
+            tcpSocket: {port: 8080}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests: {memory: "256Mi", cpu: "150m"}
+            limits:   {memory: "1Gi"}
+      volumes:
+        - name: secrets
+          secret:
+            secretName: eegfaktura-keycloak-json
+            items:
+              - {key: keycloak.json, path: eegfaktura-keycloak-json}
+        - name: rawdata
+          persistentVolumeClaim: {claimName: energystore-data}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: eegfaktura-energystore, namespace: eegfaktura}
+spec:
+  selector: {app: eegfaktura-energystore}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}

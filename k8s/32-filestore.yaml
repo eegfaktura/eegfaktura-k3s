@@ -1,0 +1,66 @@
+# Document storage (Python/FastAPI). First service behind a prefixed ingress
+# route, so it doubles as proof that the StripPrefix middleware from step 09
+# works: /filestore/x must reach the pod as /x.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: filestore-data, namespace: eegfaktura}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 10Gi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: eegfaktura-filestore, namespace: eegfaktura}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: eegfaktura-filestore}}
+  template:
+    metadata: {labels: {app: eegfaktura-filestore}}
+    spec:
+      # /run/secrets vs service-account token collision — see step 07
+      automountServiceAccountToken: false
+      containers:
+        - name: filestore
+          image: localhost:5000/eegfaktura-filestore:dev
+          imagePullPolicy: Always
+          env:
+            - {name: DB_HOSTNAME,      value: "eegfaktura-postgresql"}
+            - {name: DB_USERNAME,      value: "eegfaktura"}
+            - {name: DB_PASSWORD_FILE, value: "/run/secrets/eegfaktura-db-password"}
+            - {name: HTTP_PROTOCOL,    value: "http"}
+            - {name: HTTP_HOSTNAME,    value: "0.0.0.0"}
+            - {name: HTTP_PORT,        value: "8080"}
+            - {name: HTTP_FILE_DL_ENDPOINT,    value: "filestore"}
+            - {name: FILESTORE_LOCAL_BASE_DIR, value: "/eegfaktura-filestore-data"}
+            # Auto-create category/container/storage on first use. Convenient
+            # here; upstream flags it as unsuitable for production. NOTE: any
+            # non-empty string is true — disable with "", not "false".
+            - {name: FILESTORE_CREATE_UNKNOWN_CATEGORY,  value: "true"}
+            - {name: FILESTORE_CREATE_UNKNOWN_CONTAINER, value: "true"}
+            - {name: FILESTORE_CREATE_UNKNOWN_STORAGE,   value: "true"}
+          ports:
+            - {containerPort: 8080, name: http}
+          volumeMounts:
+            - {name: secrets, mountPath: /run/secrets, readOnly: true}
+            - {name: data,    mountPath: /eegfaktura-filestore-data}
+          readinessProbe:
+            tcpSocket: {port: 8080}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: {memory: "128Mi", cpu: "100m"}
+            limits:   {memory: "512Mi"}
+      volumes:
+        - name: secrets
+          secret: {secretName: eegfaktura-passwords}
+        - name: data
+          persistentVolumeClaim: {claimName: filestore-data}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: eegfaktura-filestore, namespace: eegfaktura}
+spec:
+  selector: {app: eegfaktura-filestore}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}

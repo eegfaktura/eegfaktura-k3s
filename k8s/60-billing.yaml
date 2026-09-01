@@ -1,0 +1,48 @@
+# Invoice / credit-note generation (Java, Spring Boot).
+#
+# OPTIONAL: not needed for the registration or master-data workflow. Upstream
+# already removed it from the depends_on lists of eegfaktura-web and
+# eegfaktura-proxy. Skip it if memory is tight.
+#
+# MAIL_HOST is mandatory: docker-compose.yaml never sets it, so Spring's
+# MailSenderAutoConfiguration cannot resolve ${MAIL_HOST} and the container
+# exits(1) during startup. See known-problems.md #3.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: eegfaktura-billing, namespace: eegfaktura}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: eegfaktura-billing}}
+  template:
+    metadata: {labels: {app: eegfaktura-billing}}
+    spec:
+      containers:
+        - name: billing
+          image: localhost:5000/eegfaktura-billing:dev
+          imagePullPolicy: Always
+          env:
+            - {name: JDBC_DATABASE_URL,      value: "jdbc:postgresql://eegfaktura-postgresql:5432/eegfaktura"}
+            - {name: JDBC_DATABASE_USERNAME, value: "eegfaktura"}
+            - name: JDBC_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: eegfaktura-passwords, key: eegfaktura-db-password}
+            # absent upstream — without these the container exits(1)
+            - {name: MAIL_HOST, value: "eegfaktura-postfix"}
+            - {name: MAIL_PORT, value: "25"}
+          ports:
+            - {containerPort: 8080, name: http}
+          readinessProbe:
+            tcpSocket: {port: 8080}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests: {memory: "512Mi", cpu: "150m"}
+            limits:   {memory: "1536Mi"}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: eegfaktura-billing, namespace: eegfaktura}
+spec:
+  selector: {app: eegfaktura-billing}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}

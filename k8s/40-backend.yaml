@@ -1,0 +1,77 @@
+# Core domain / billing API (Go). Serves HTTP on 9080 and gRPC on 9092.
+#
+# BOTH ports must be exposed: energystore reaches the backend at
+# eegfaktura-backend:9092 for master data, and the admin backend registers EEGs
+# the same way. Exposing only 9080 breaks registration in a way that looks like
+# an auth failure.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: backend-storage, namespace: eegfaktura}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 10Gi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: eegfaktura-backend, namespace: eegfaktura}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: eegfaktura-backend}}
+  template:
+    metadata: {labels: {app: eegfaktura-backend}}
+    spec:
+      # mounts /run/secrets — see step 07
+      automountServiceAccountToken: false
+      containers:
+        - name: backend
+          image: localhost:5000/vfeeg-backend:dev
+          imagePullPolicy: Always
+          env:
+            - {name: KEYCLOAK_CONFIG, value: "/run/secrets/eegfaktura-keycloak-json"}
+            - {name: VFEEG_BACKEND_DATABASE_HOST,   value: "eegfaktura-postgresql"}
+            - {name: VFEEG_BACKEND_DATABASE_PORT,   value: "5432"}
+            - {name: VFEEG_BACKEND_DATABASE_USER,   value: "eegfaktura"}
+            - {name: VFEEG_BACKEND_DATABASE_DBNAME, value: "eegfaktura"}
+            - name: VFEEG_BACKEND_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: eegfaktura-passwords, key: eegfaktura-db-password}
+            - {name: VFEEG_BACKEND_MQTT_HOST, value: "tcp://eegfaktura-mosquitto:1883"}
+          ports:
+            - {containerPort: 9080, name: http}
+            - {containerPort: 9092, name: grpc}
+          volumeMounts:
+            - {name: secrets,   mountPath: /run/secrets, readOnly: true}
+            - {name: config,    mountPath: /etc/backend, readOnly: true}
+            - {name: storage,   mountPath: /opt/storage}
+            - {name: templates, mountPath: /opt/storage/public/templates, readOnly: true}
+          readinessProbe:
+            tcpSocket: {port: 9080}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests: {memory: "256Mi", cpu: "150m"}
+            limits:   {memory: "1Gi"}
+      volumes:
+        - name: secrets
+          secret:
+            secretName: eegfaktura-keycloak-json
+            # compose exposes the secret under its own NAME, and KEYCLOAK_CONFIG
+            # points there — so remap the key to that filename
+            items:
+              - {key: keycloak.json, path: eegfaktura-keycloak-json}
+        - name: config
+          configMap: {name: backend-config}
+        - name: storage
+          persistentVolumeClaim: {claimName: backend-storage}
+        - name: templates
+          configMap: {name: backend-templates}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: eegfaktura-backend, namespace: eegfaktura}
+spec:
+  selector: {app: eegfaktura-backend}
+  ports:
+    - {name: http, port: 9080, targetPort: 9080}
+    - {name: grpc, port: 9092, targetPort: 9092}

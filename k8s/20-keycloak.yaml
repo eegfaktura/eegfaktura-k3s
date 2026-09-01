@@ -1,0 +1,91 @@
+# Keycloak — the hostname MUST match for browser and pods, because the URL
+# below is stamped into every token's `iss` claim and the backends fetch JWKS
+# from it. Both sides resolve keycloak.<your-domain> to this VM's IP and reach
+# Traefik, which terminates TLS and forwards here in plain HTTP.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eegfaktura-keycloak
+  namespace: eegfaktura
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: eegfaktura-keycloak}
+  template:
+    metadata:
+      labels: {app: eegfaktura-keycloak}
+    spec:
+      containers:
+        - name: keycloak
+          image: localhost:5000/eegfaktura-keycloak:dev
+          imagePullPolicy: Always
+          args: ["start", "--optimized", "--import-realm"]
+          env:
+            - {name: KC_DB,          value: "postgres"}
+            - {name: KC_DB_USERNAME, value: "keycloak"}
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: eegfaktura-passwords, key: eegfaktura-keycloak-db-password}
+            - {name: KC_DB_URL, value: "jdbc:postgresql://eegfaktura-postgresql:5432/keycloak"}
+
+            # --- the hostname that must match everywhere ---
+            - {name: KC_HOSTNAME,        value: "https://keycloak.dev.yourdomain.com"}
+            - {name: KC_HOSTNAME_STRICT, value: "false"}
+            - {name: KC_HTTP_ENABLED,    value: "true"}
+            - {name: KC_PROXY_HEADERS,   value: "xforwarded"}
+
+            - {name: KC_HEALTH_ENABLED,       value: "true"}
+            - {name: KC_HTTP_MANAGEMENT_PORT, value: "9181"}
+            # KEYCLOAK_ADMIN/_PASSWORD are deprecated in Keycloak 26
+            - {name: KC_BOOTSTRAP_ADMIN_USERNAME, value: "admin"}
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: eegfaktura-passwords, key: keycloak-admin-password}
+          ports:
+            - {containerPort: 8080, name: http}
+            - {containerPort: 9181, name: management}
+          volumeMounts:
+            - {name: realm-import, mountPath: /opt/keycloak/data/import, readOnly: true}
+          readinessProbe:
+            httpGet: {path: /health/ready, port: 9181}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+          resources:
+            requests: {memory: "768Mi", cpu: "250m"}
+            limits:   {memory: "2Gi"}
+      volumes:
+        - name: realm-import
+          configMap: {name: keycloak-realm-import}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eegfaktura-keycloak
+  namespace: eegfaktura
+spec:
+  selector: {app: eegfaktura-keycloak}
+  # Traefik terminates TLS and forwards here in plain HTTP, so this stays 80.
+  ports:
+    - {name: http, port: 80, targetPort: 8080}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+  namespace: eegfaktura
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [keycloak.dev.yourdomain.com]
+      secretName: eegfaktura-tls
+  rules:
+    - host: keycloak.dev.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: eegfaktura-keycloak
+                port: {number: 80}

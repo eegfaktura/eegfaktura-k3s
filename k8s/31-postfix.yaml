@@ -1,0 +1,58 @@
+# Outbound mail relay. eegfaktura-billing refuses to boot without a reachable
+# MAIL_HOST, and registration e-mails are handed to this service.
+#
+# The upstream relay settings are placeholders (smtp.example.com), so mail is
+# accepted and queued but never delivered. Fine for a dev cluster — credentials
+# for a real relay would go in the secret.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: eegfaktura-postfix, namespace: eegfaktura}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: eegfaktura-postfix}}
+  template:
+    metadata: {labels: {app: eegfaktura-postfix}}
+    spec:
+      # mounting /run/secrets collides with the service-account token mount
+      # (/var/run is a symlink to /run) — see step 07
+      automountServiceAccountToken: false
+      containers:
+        - name: postfix
+          image: localhost:5000/eegfaktura-postfix:dev
+          imagePullPolicy: Always
+          env:
+            - {name: POSTFIX_HOSTNAME,    value: "eegfaktura-postfix"}
+            - {name: POSTFIX_MYDOMAIN,    value: "dev.yourdomain.com"}
+            # k3s default pod CIDR — senders inside the cluster are trusted.
+            # verify: kubectl get node -o jsonpath='{.items[0].spec.podCIDR}'
+            - {name: POSTFIX_MYNETWORK,   value: "10.42.0.0/16"}
+            - {name: POSTFIX_DNS_1,       value: "9.9.9.9"}
+            - {name: POSTFIX_DNS_2,       value: "1.1.1.1"}
+            - {name: POSTFIX_RELAY_HOST,  value: "smtp.example.com"}
+            - {name: POSTFIX_RELAY_PORT,  value: "587"}
+            - {name: POSTFIX_RELAY_TLS,   value: "yes"}
+            - {name: POSTFIX_RELAY_USER,  value: "relay-user@example.com"}
+            - {name: POSTFIX_RELAY_EMAIL, value: "eegfaktura@example.com"}
+            - {name: POSTFIX_RELAY_PASSWORD_FILE, value: "/run/secrets/eegfaktura-smtp-password"}
+          ports:
+            - {containerPort: 25, name: smtp}
+          volumeMounts:
+            - {name: secrets, mountPath: /run/secrets, readOnly: true}
+          readinessProbe:
+            tcpSocket: {port: 25}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: {memory: "64Mi", cpu: "50m"}
+            limits:   {memory: "256Mi"}
+      volumes:
+        - name: secrets
+          secret: {secretName: eegfaktura-passwords}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: eegfaktura-postfix, namespace: eegfaktura}
+spec:
+  selector: {app: eegfaktura-postfix}
+  ports:
+    - {name: smtp, port: 25, targetPort: 25}

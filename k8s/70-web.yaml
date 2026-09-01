@@ -1,0 +1,40 @@
+# Platform UI (React + Ionic). Served by Caddy inside the image.
+#
+# The image renders /config/keycloak-config.json from a template AT CONTAINER
+# START using these env vars. Mounting a config file under the webroot does NOT
+# override it — Caddy serves /config/... from the template. With the vars unset
+# it falls back to http://localhost:7080 and every login fails.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: eegfaktura-web, namespace: eegfaktura}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: eegfaktura-web}}
+  template:
+    metadata: {labels: {app: eegfaktura-web}}
+    spec:
+      containers:
+        - name: web
+          image: localhost:5000/vfeeg-web:dev
+          imagePullPolicy: Always
+          env:
+            - {name: KEYCLOAK_URL,       value: "https://keycloak.dev.yourdomain.com"}
+            - {name: KEYCLOAK_REALM,     value: "EEGFaktura"}
+            - {name: KEYCLOAK_CLIENT_ID, value: "at.ourproject.vfeeg.app"}
+          ports:
+            - {containerPort: 8080, name: http}
+          readinessProbe:
+            httpGet: {path: /, port: 8080}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: {memory: "64Mi", cpu: "50m"}
+            limits:   {memory: "256Mi"}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: eegfaktura-web, namespace: eegfaktura}
+spec:
+  selector: {app: eegfaktura-web}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}

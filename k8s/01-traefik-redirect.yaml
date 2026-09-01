@@ -1,0 +1,25 @@
+# Redirect every plain-HTTP request to HTTPS, cluster-wide.
+#
+# Not cosmetic. The frontends need a SECURE CONTEXT: browsers expose
+# window.crypto.subtle only over https (or on localhost), and oidc-client-ts
+# needs it to compute the S256 PKCE challenge. Reached over http:// the app
+# shows a spinner forever, with no error and no network request — see
+# known-problems.md #19. This makes typing http:// harmless.
+#
+# k3s installs Traefik from a bundled Helm chart; HelmChartConfig merges extra
+# values into it without forking the chart.
+# https://docs.k3s.io/helm#customizing-packaged-components-with-helmchartconfig
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    ports:
+      web:
+        redirections:
+          entryPoint:
+            to: websecure
+            scheme: https
+            permanent: true

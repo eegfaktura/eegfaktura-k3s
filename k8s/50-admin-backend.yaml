@@ -1,0 +1,69 @@
+# EEG registration / admin API (Scala, Pekko). Creates Keycloak users when an
+# EEG is registered.
+#
+# THE critical setting is KEYCLOAK_ADMIN_CLI_SECRET. The image's bundled
+# application.conf has `configfile = ${?KEYCLOAK_CONFIG_JSON}` COMMENTED OUT, so
+# the mounted keycloak.json is never read and a secret baked into the jar is
+# used instead. Without this env var, registration fails with HTTP 401
+# (invalid_client_credentials). See known-problems.md #5.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: eegfaktura-admin-backend, namespace: eegfaktura}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: eegfaktura-admin-backend}}
+  template:
+    metadata: {labels: {app: eegfaktura-admin-backend}}
+    spec:
+      # mounts /run/secrets — see step 07
+      automountServiceAccountToken: false
+      containers:
+        - name: admin-backend
+          image: localhost:5000/eeg-registration-backend:dev
+          imagePullPolicy: Always
+          command: ["/opt/docker/bin/eegfaktura-registration"]
+          env:
+            # kept for parity with compose; the image ignores it
+            - {name: KEYCLOAK_CONFIG_JSON, value: "/run/secrets/eegfaktura-keycloak-json"}
+            # must be the public hostname: used for BOTH the JWKS fetch and
+            # issuer validation, so it has to match the `iss` in browser tokens
+            - {name: KEYCLOAK_URL,      value: "https://keycloak.dev.yourdomain.com"}
+            - {name: KEYCLOAK_REALM,    value: "EEGFaktura"}
+            - {name: KEYCLOAK_AUDIENCE, value: "at.ourproject.vfeeg.admin"}
+            - name: KEYCLOAK_ADMIN_CLI_SECRET
+              valueFrom:
+                secretKeyRef: {name: eegfaktura-admin-cli, key: secret}
+            - {name: DATABASE_HOST,   value: "eegfaktura-postgresql"}
+            - {name: DATABASE_PORT,   value: "5432"}
+            - {name: DATABASE_USER,   value: "eegfaktura"}
+            - {name: DATABASE_DBNAME, value: "eegfaktura"}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: eegfaktura-passwords, key: eegfaktura-db-password}
+            - {name: REGISTER_SERVICE_HOST_EEG,    value: "eegfaktura-backend"}
+            - {name: REGISTER_SERVICE_HOST_PONTON, value: "eegfaktura-eda"}
+          ports:
+            - {containerPort: 8085, name: http}
+          readinessProbe:
+            tcpSocket: {port: 8085}
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests: {memory: "512Mi", cpu: "150m"}
+            limits:   {memory: "1536Mi"}
+          volumeMounts:
+            - {name: secrets, mountPath: /run/secrets, readOnly: true}
+      volumes:
+        - name: secrets
+          secret:
+            secretName: eegfaktura-keycloak-json
+            items:
+              - {key: keycloak.json, path: eegfaktura-keycloak-json}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: eegfaktura-admin-backend, namespace: eegfaktura}
+spec:
+  selector: {app: eegfaktura-admin-backend}
+  ports:
+    - {name: http, port: 8085, targetPort: 8085}

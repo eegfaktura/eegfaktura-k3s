@@ -1,0 +1,46 @@
+# MQTT broker — backend, energystore and eda publish/subscribe through it.
+# Must exist before the backend and energystore, which connect at startup.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: mosquitto-data, namespace: eegfaktura}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 2Gi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: eegfaktura-mosquitto, namespace: eegfaktura}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: eegfaktura-mosquitto}}
+  template:
+    metadata: {labels: {app: eegfaktura-mosquitto}}
+    spec:
+      containers:
+        - name: mosquitto
+          image: localhost:5000/eegfaktura-mosquitto:dev
+          imagePullPolicy: Always
+          command: ["/usr/sbin/mosquitto", "-c", "/mosquitto/config/mosquitto.conf"]
+          ports:
+            - {containerPort: 1883, name: mqtt}
+          volumeMounts:
+            - {name: data, mountPath: /mosquitto/data}
+          readinessProbe:
+            tcpSocket: {port: 1883}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: {memory: "64Mi", cpu: "50m"}
+            limits:   {memory: "256Mi"}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: mosquitto-data}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: eegfaktura-mosquitto, namespace: eegfaktura}
+spec:
+  selector: {app: eegfaktura-mosquitto}
+  ports:
+    - {name: mqtt, port: 1883, targetPort: 1883}

@@ -1,0 +1,153 @@
+# Replaces the Caddy proxy container from docker-compose.
+#
+# Caddy's `handle_path` STRIPS the matched prefix before proxying; Kubernetes
+# Ingress does not. Every prefixed route therefore needs a Traefik StripPrefix
+# middleware, or the backend receives /api/eeg instead of /eeg and returns 404.
+#
+# One Ingress per prefix: the middleware annotation applies to the whole Ingress
+# object, so mixing /api and / in one would strip the prefix from both.
+# Traefik prioritises longer path matches, so /api wins over / automatically.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata: {name: strip-api, namespace: eegfaktura}
+spec:
+  stripPrefix: {prefixes: ["/api"]}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata: {name: strip-energystore, namespace: eegfaktura}
+spec:
+  stripPrefix: {prefixes: ["/energystore"]}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata: {name: strip-cash, namespace: eegfaktura}
+spec:
+  stripPrefix: {prefixes: ["/cash"]}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata: {name: strip-admin-api, namespace: eegfaktura}
+spec:
+  stripPrefix: {prefixes: ["/eeg", "/vfeeg", "/admin"]}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-api
+  namespace: eegfaktura
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: eegfaktura-strip-api@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [app.dev.yourdomain.com]
+      secretName: eegfaktura-tls
+  rules:
+    - host: app.dev.yourdomain.com
+      http:
+        paths:
+          - {path: /api, pathType: Prefix, backend: {service: {name: eegfaktura-backend, port: {number: 9080}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-energystore
+  namespace: eegfaktura
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: eegfaktura-strip-energystore@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [app.dev.yourdomain.com]
+      secretName: eegfaktura-tls
+  rules:
+    - host: app.dev.yourdomain.com
+      http:
+        paths:
+          - {path: /energystore, pathType: Prefix, backend: {service: {name: eegfaktura-energystore, port: {number: 8080}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-filestore
+  namespace: eegfaktura
+  # NO StripPrefix: the app mounts its router at /filestore
+  # (app.include_router(..., prefix=f"/{HTTP_FILE_DL_ENDPOINT}")), so the path
+  # must pass through unchanged. Verified: / -> 404, /filestore/ -> 405.
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [app.dev.yourdomain.com]
+      secretName: eegfaktura-tls
+  rules:
+    - host: app.dev.yourdomain.com
+      http:
+        paths:
+          - {path: /filestore, pathType: Prefix, backend: {service: {name: eegfaktura-filestore, port: {number: 8080}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-cash
+  namespace: eegfaktura
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: eegfaktura-strip-cash@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [app.dev.yourdomain.com]
+      secretName: eegfaktura-tls
+  rules:
+    - host: app.dev.yourdomain.com
+      http:
+        paths:
+          - {path: /cash, pathType: Prefix, backend: {service: {name: eegfaktura-billing, port: {number: 8080}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata: {name: app-root, namespace: eegfaktura}
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [app.dev.yourdomain.com]
+      secretName: eegfaktura-tls
+  rules:
+    - host: app.dev.yourdomain.com
+      http:
+        paths:
+          - {path: /, pathType: Prefix, backend: {service: {name: eegfaktura-web, port: {number: 8080}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: admin-api
+  namespace: eegfaktura
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: eegfaktura-strip-admin-api@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [admin.dev.yourdomain.com]
+      secretName: eegfaktura-tls
+  rules:
+    - host: admin.dev.yourdomain.com
+      http:
+        paths:
+          - {path: /eeg,   pathType: Prefix, backend: {service: {name: eegfaktura-admin-backend, port: {number: 8085}}}}
+          - {path: /vfeeg, pathType: Prefix, backend: {service: {name: eegfaktura-admin-backend, port: {number: 8085}}}}
+          - {path: /admin, pathType: Prefix, backend: {service: {name: eegfaktura-admin-backend, port: {number: 8085}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata: {name: admin-root, namespace: eegfaktura}
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [admin.dev.yourdomain.com]
+      secretName: eegfaktura-tls
+  rules:
+    - host: admin.dev.yourdomain.com
+      http:
+        paths:
+          - {path: /, pathType: Prefix, backend: {service: {name: eegfaktura-admin-web, port: {number: 8080}}}}

@@ -1,0 +1,36 @@
+# Admin portal UI (React). Same env-rendered Keycloak config as eegfaktura-web,
+# differing only in the client id.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: eegfaktura-admin-web, namespace: eegfaktura}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: eegfaktura-admin-web}}
+  template:
+    metadata: {labels: {app: eegfaktura-admin-web}}
+    spec:
+      containers:
+        - name: admin-web
+          image: localhost:5000/eeg-registration-frontend:dev
+          imagePullPolicy: Always
+          env:
+            - {name: KEYCLOAK_URL,       value: "https://keycloak.dev.yourdomain.com"}
+            - {name: KEYCLOAK_REALM,     value: "EEGFaktura"}
+            - {name: KEYCLOAK_CLIENT_ID, value: "at.ourproject.vfeeg.admin"}
+          ports:
+            - {containerPort: 8080, name: http}
+          readinessProbe:
+            httpGet: {path: /, port: 8080}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: {memory: "64Mi", cpu: "50m"}
+            limits:   {memory: "256Mi"}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: eegfaktura-admin-web, namespace: eegfaktura}
+spec:
+  selector: {app: eegfaktura-admin-web}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}
