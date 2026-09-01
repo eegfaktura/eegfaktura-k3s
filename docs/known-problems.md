@@ -505,13 +505,24 @@ rm pnpm-workspace.yaml
 git checkout pnpm-lock.yaml package.json   # if either shows as modified
 ```
 
-**Workaround.**
+**Workaround.** Pin the version on every invocation — no root, no shim, and it
+cannot drift:
+
+```bash
+corepack pnpm@9.12.1 install
+corepack pnpm@9.12.1 why form-data      # must be >= 4.0.4
+```
+
+A global install works too, if you want a bare `pnpm` on the PATH:
 
 ```bash
 sudo npm install -g pnpm@9.12.1
-pnpm install
-pnpm why form-data      # must be >= 4.0.4
 ```
+
+Note that `corepack prepare pnpm@9.12.1 --activate` on its own does **not**
+give you a `pnpm` command — the shims come from `corepack enable`, and running
+either under `sudo` records the default for root instead of for you. See
+[step 18.2](18-frontends.md).
 
 **Real fix.** Add `"packageManager": "pnpm@9.12.1"` to `package.json` — matching
 the version the repo's own CI already pins — so corepack installs the right one

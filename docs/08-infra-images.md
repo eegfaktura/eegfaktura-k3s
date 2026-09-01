@@ -107,6 +107,16 @@ docker rm -f pgtest
 
 Both databases listed means the image works.
 
+> [!NOTE]
+> **The locale column reads `en_US.utf8` here, not the `de_DE:UTF8` of
+> [8.3](#83-the-postgres-image-matters-more-than-it-looks).** This throwaway
+> container is not given `POSTGRES_INITDB_ARGS`, so `initdb` falls back to the
+> image's own `LANG`. Step 10 passes the argument and the catalog there reads
+> `de_DE:UTF8` instead. Nothing to reconcile: collation is byte order in both
+> cases, because the locale data is missing either way. Add
+> `-e POSTGRES_INITDB_ARGS=--locale=de_DE:UTF8` to the `docker run` above if you
+> want the check to mirror step 10 exactly.
+
 ## Done when
 
 - Four images in `http://localhost:5000/v2/_catalog`

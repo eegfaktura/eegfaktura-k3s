@@ -70,18 +70,54 @@ export ACME_EMAIL='you@example.com'
 ```
 
 ```bash
-lego --path ~/lego \
+lego run --path ~/lego \
   --email "$ACME_EMAIL" --accept-tos \
-  --dns desec \
-  --domains "$BASE_DOMAIN" --domains "*.$BASE_DOMAIN" \
-  run
+  --dns desec --dns.propagation.disable-rns \
+  --domains "$BASE_DOMAIN" --domains "*.$BASE_DOMAIN"
 ```
 
+> [!IMPORTANT]
+> **Every flag goes *after* `run`.** lego 5 moved what used to be global flags
+> onto the subcommands, so the v4 form — flags first, `run` last — now fails on
+> the first one it meets:
+>
+> ```
+> Incorrect Usage: flag provided but not defined: -path
+> ```
+>
+> The message names `-path`, but nothing is wrong with `--path`; it is only the
+> first flag in the line. Most lego examples still in circulation are v4 and put
+> the flags before the command.
+
 > [!WARNING]
-> **`--path` matters.** Without it lego writes to `./.lego`, relative to
-> whatever directory you happened to be in — not `$HOME/.lego`. Renewals must
-> use the same `--path`, so fixing it now avoids hunting for the certificate
-> later.
+> **`--path` matters.** Its default is `$PWD/.lego` — relative to whatever
+> directory you happened to be in, not `$HOME/.lego`. Renewals must use the same
+> `--path`, so fixing it now avoids hunting for the certificate later. Exporting
+> `LEGO_PATH=~/lego` does the same job if you prefer not to repeat the flag.
+
+> [!IMPORTANT]
+> **`--dns.propagation.disable-rns` is what makes a *second* attempt work.**
+> lego 5 checks that the challenge record reached the *recursive* resolvers —
+> on Ubuntu that is `127.0.0.53`, the systemd-resolved stub — and it runs that
+> check before the authoritative one. deSEC pins every record at a TTL of
+> **3600** (`minimum_ttl` is read-only, exceptions by support request only), so
+> once any resolver in the path has looked up `_acme-challenge.$BASE_DOMAIN`, it
+> keeps serving that hour-old copy however many times lego rewrites the record.
+> A first run on a name nothing has ever looked up usually passes; a retry
+> inside the hour fails, having written a perfectly good record. So can a first
+> attempt, if the earlier `NXDOMAIN` for that name got negative-cached — same
+> 3600, from the zone's SOA:
+>
+> ```
+> ERROR Error error="obtain certificate: resolver: one or more domains had a
+> problem: [*.dev.yourdomain.com: dns01: time limit exceeded: last error:
+> recursive nameservers: NS 127.0.0.53:53 did not return the expected TXT
+> record [fqdn: _acme-challenge.dev.yourdomain.com., value: 5iPGoQRy…]
+> ```
+>
+> The listed values are the *stale* ones, which is the tell. The flag drops
+> only the recursive check — propagation to the authoritative nameservers, the
+> ones Let's Encrypt actually queries, must still succeed.
 
 ```bash
 ls ~/lego/certificates/
@@ -96,8 +132,37 @@ Expect `$BASE_DOMAIN.crt`, `.key`, `.issuer.crt` and `.json`.
 |---|---|
 | `unable to find a solver` | Wrong `--dns` provider name. Check `lego dnshelp` |
 | `some credentials information are missing` | The env var names differ from what you exported — `lego dnshelp -c <provider>` lists the exact names |
-| `timeout waiting for record` | Slow zone propagation. Retry with `--dns-timeout 120` |
+| `recursive nameservers: NS 127.0.0.53:53 did not return the expected TXT record` | A cached copy of the record, not a missing one — `--dns.propagation.disable-rns`, as above |
+| `timeout waiting for record` | Slow zone propagation. Retry with `--dns.propagation.wait 120s` (v4 called this `--dns-timeout`) |
 | `too many certificates already issued` | Let's Encrypt rate limit — five per domain per week. Add `--server https://acme-staging-v02.api.letsencrypt.org/directory` while experimenting, but note the staging CA is **not trusted**, so re-issue against production before continuing |
+
+</details>
+
+<details>
+<summary>Leftover <code>_acme-challenge</code> records</summary>
+
+lego removes the values it is still holding, so a run killed part-way through
+leaves its two behind. They are harmless — the CA looks for its own value among
+whatever else is in the set — but they accumulate, two per abandoned attempt.
+Look at what is actually published, asking the authoritative server so no cache
+is in the way:
+
+```bash
+dig +short TXT _acme-challenge."$BASE_DOMAIN" @ns1.desec.io
+```
+
+During issuance that should show one value per certificate name; at rest,
+nothing. Clear the whole record set if it has collected junk:
+
+```bash
+curl -X DELETE "https://desec.io/api/v1/domains/<zone>/rrsets/_acme-challenge.<subname>/TXT/" \
+  -H "Authorization: Token $DESEC_TOKEN"
+```
+
+`<zone>` is the domain as registered at deSEC and `<subname>` the labels of
+`$BASE_DOMAIN` below it — for `dev.eegfaktura.example.com` in a zone
+`example.com`, that is `_acme-challenge.dev.eegfaktura`. A `204` means gone (or
+never there).
 
 </details>
 
@@ -125,10 +190,12 @@ The `.crt` lego writes already contains the full chain, which is what Traefik
 needs — no concatenation step.
 
 > [!NOTE]
-> **Renewal.** Let's Encrypt certificates last 90 days. Re-run the same command
-> with `renew` instead of `run` and the same `--path`, then delete and recreate
-> the Secret. For a permanent setup, install cert-manager with a DNS-01 solver
-> and stop thinking about it; for a dev cluster a calendar reminder is adequate.
+> **Renewal.** Let's Encrypt certificates last 90 days. lego 5 has no separate
+> `renew` command — re-run the *same* `lego run` line with the same `--path` and
+> it renews the existing certificate in place (add `--renew-force` to renew
+> before it is due). Then delete and recreate the Secret. For a permanent
+> setup, install cert-manager with a DNS-01 solver and stop thinking about it;
+> for a dev cluster a calendar reminder is adequate.
 
 ## 5.4 Redirect HTTP to HTTPS
 
@@ -215,6 +282,18 @@ Clean up:
 ```bash
 kubectl delete ingress tlstest -n eegfaktura; kubectl delete service tlstest -n eegfaktura; kubectl delete deployment tlstest -n eegfaktura
 ```
+
+```bash
+kubectl get ingress,svc,deploy -n eegfaktura | grep -i tlstest || echo "tlstest gone"
+```
+
+> [!IMPORTANT]
+> **Do not skip the cleanup.** This Ingress claims `$APP_HOST` at path `/` —
+> the same host and path that `90-ingress.yaml` gives to the real frontend in
+> [step 13](13-ingress.md). Left in place, the two compete and Traefik may keep
+> serving this nginx placeholder, so [step 19.5](19-bootstrap-and-verify.md)
+> greets you with "Welcome to nginx!" instead of the app. It is a confusing
+> failure precisely because everything else looks healthy.
 
 ## Done when
 

@@ -52,10 +52,44 @@ cd ~/src/eegfaktura-web
 > pins `9.12.1`; match it.
 > [Known problems #16](known-problems.md#16-eegfaktura-web-does-not-pin-its-package-manager).
 
+Invoke corepack with the version attached. This needs no root, creates no
+shim, and cannot pick up a different pnpm later:
+
 ```bash
-sudo corepack prepare pnpm@9.12.1 --activate
-pnpm --version
+corepack pnpm@9.12.1 --version
 ```
+
+> [!IMPORTANT]
+> **`corepack prepare … --activate` alone leaves you with no `pnpm` command.**
+> An earlier revision of this step told you to run
+> `sudo corepack prepare pnpm@9.12.1 --activate`, which fails at the next line
+> with
+>
+> ```
+> bash: pnpm: command not found
+> ```
+>
+> `prepare` downloads the version into corepack's cache and records it as a
+> default; the `pnpm` and `pnpx` shims in `/usr/bin` are created by
+> `corepack enable`, which is a separate command. Running `prepare` under
+> `sudo` adds a second fault on top: both the download and the default-version
+> record land in **root's** corepack home, so a later `pnpm` run as your own
+> user falls back to the newest release — the 11.x this section exists to
+> avoid, and it would do so silently.
+
+<details>
+<summary>If you would rather have a plain <code>pnpm</code> command</summary>
+
+Two commands, and the second one **without** `sudo` so the default is recorded
+for your user rather than root's:
+
+```bash
+sudo corepack enable
+corepack prepare pnpm@9.12.1 --activate
+pnpm --version                              # must print 9.12.1, not 11.x
+```
+
+</details>
 
 <details>
 <summary>If pnpm is already installed and this collides</summary>
@@ -73,8 +107,9 @@ npm error EEXIST: file already exists
 npm error File exists: /usr/bin/pnpx
 ```
 
-`corepack prepare … --activate` above avoids both. To use npm's global install
-instead, clear the shims first:
+The version-pinned `corepack pnpm@9.12.1 …` form above avoids both, because it
+never writes a shim. To use npm's global install instead, clear the shims
+first:
 
 ```bash
 sudo corepack disable && sudo rm -f /usr/bin/pnpm /usr/bin/pnpx
@@ -104,8 +139,8 @@ git checkout pnpm-lock.yaml package.json    # only if shown as modified
 > lockfile pins.
 
 ```bash
-pnpm install
-pnpm run build
+corepack pnpm@9.12.1 install
+corepack pnpm@9.12.1 run build
 ls dist
 ```
 

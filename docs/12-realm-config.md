@@ -26,9 +26,24 @@ TOKEN=$(curl -s -X POST "$KC/realms/master/protocol/openid-connect/token" \
 ```
 
 > [!NOTE]
-> Master-realm admin tokens are short-lived — a minute by default. If a later
-> command returns `401`, re-run the two lines above rather than looking for a
-> different problem.
+> **Master-realm admin tokens are short-lived — a minute by default.** Expiry
+> rarely announces itself as a plain `401`, because every command below pipes
+> the response straight into `jq`. What you see instead is
+>
+> ```
+> jq: error (at <stdin>:0): Cannot index object with number
+> ```
+>
+> — `.[0]` applied to `{"error":"HTTP 401 Unauthorized"}` where an array of
+> clients was expected. Re-mint the token and run the command again; whatever
+> already returned `204` stayed applied. Since every section here needs it,
+> keep it to one word:
+>
+> ```bash
+> kctoken() { TOKEN=$(curl -s -X POST "$KC/realms/master/protocol/openid-connect/token" \
+>   -d client_id=admin-cli -d username=admin -d password="$KC_ADMIN_PW" -d grant_type=password \
+>   | jq -r .access_token); [ -n "$TOKEN" ] && [ "$TOKEN" != null ] && echo "token ok" || echo "TOKEN FAILED"; }
+> ```
 
 ## 12.2 Rotate the `admin-cli` secret
 

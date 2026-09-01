@@ -16,6 +16,19 @@ TOKEN=$(curl -s -X POST "$KC/realms/master/protocol/openid-connect/token" \
   -d grant_type=password | jq -r .access_token)
 ```
 
+> [!NOTE]
+> **Mint the token immediately before you use it.** The five calls in 19.1 all
+> carry `$TOKEN`, and a master-realm admin token lasts about a minute
+> ([step 12.1](12-realm-config.md#121-get-an-admin-token)). A token left over
+> from step 12, or one that aged while you read ahead, produces
+>
+> ```
+> create user -> HTTP 401
+> ```
+>
+> — not a permissions problem, and nothing is created. Re-run the two lines
+> above, or the `kctoken` helper from 12.1, and repeat the call.
+
 ```bash
 MANAGER_PW=$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 20); echo "manager password: $MANAGER_PW"
 ```
@@ -131,9 +144,43 @@ either copy them across or clone the compose repo locally:
 scp <user>@"$VM_IP":'~/src/eegfaktura-docker-compose/data/*.xlsx' .
 ```
 
-Open `https://app.dev.yourdomain.com`, log in with the credentials from 19.3,
-and upload **Stammdaten first** — it creates the participants that the energy
-data attaches to — then Energiedaten.
+Open the app, log in with the credentials from 19.3, and upload **Stammdaten
+first** — it creates the participants that the energy data attaches to — then
+Energiedaten. Print the URL rather than reconstructing it by hand:
+
+```bash
+echo "https://$APP_HOST"
+```
+
+> [!IMPORTANT]
+> **"Welcome to nginx!" means the `tlstest` scaffolding from
+> [step 5.5](05-tls.md#55-prove-traefik-serves-the-certificate) is still
+> deployed.** Nothing in this platform runs nginx — the web image is Caddy
+> (`eegfaktura-web/Dockerfile`) — but 5.5's throwaway Ingress claims
+> **`$APP_HOST` at path `/`**, exactly what `app-root` in `90-ingress.yaml`
+> claims. Two Ingresses for the same host and path, and Traefik serves one of
+> them; when `tlstest` wins you get nginx's default page instead of the app.
+>
+> ```bash
+> kubectl get ingress,svc,deploy -n eegfaktura | grep -i tlstest
+> ```
+>
+> Any output means 5.5's cleanup line was skipped or only partly ran:
+>
+> ```bash
+> kubectl delete ingress tlstest -n eegfaktura
+> kubectl delete service tlstest -n eegfaktura
+> kubectl delete deployment tlstest -n eegfaktura
+> ```
+>
+> If `tlstest` is already gone, then the request never reached this cluster —
+> Traefik answers an unknown host with a 404, not that page. Check the name:
+> `$BASE_DOMAIN` already carries the `dev.` label, so the app is at
+> `app.dev.example.com`, not `app.example.com`.
+>
+> ```bash
+> dig +short "$APP_HOST"    # must be $VM_IP
+> ```
 
 ```bash
 kubectl exec -it deployment/eegfaktura-postgresql -- psql -U eegfaktura -d eegfaktura \
