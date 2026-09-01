@@ -49,6 +49,9 @@ it printed.
 | 19 | [Bootstrap and verify](docs/19-bootstrap-and-verify.md) | manager user, register an EEG, import master data |
 | 20 | [Build pipeline](docs/20-ci-pipeline.md) | recreate the GitHub Actions flow |
 
+After the twenty steps: [updates/](updates/README.md) — pulling a branch or a
+release into a cluster that is already running, one service at a time.
+
 Background, if you want it: [docs/architecture.md](docs/architecture.md) —
 what is being built and why it is shaped this way.
 

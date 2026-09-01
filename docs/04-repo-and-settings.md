@@ -31,6 +31,7 @@ ls k8s/*.yaml | wc -l      # 15
 docs/        this guide, one file per step, plus known-problems.md
 k8s/         manifest templates — tracked in git, never edited
 k8s.local/   the rendered copies you apply — generated, git-ignored
+updates/     the day-two loop: pulling a branch or release into a running cluster
 ```
 
 The manifest numbers are independent of the step numbers; they follow the
