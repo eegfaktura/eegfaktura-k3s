@@ -43,7 +43,25 @@ Using a domain you control sidesteps it — and is required anyway, because
 
 </details>
 
-## 2.2 Make the names resolve on your LAN
+## 2.2 The same variables on your workstation
+
+A few commands below and in later steps are run from the machine with the
+browser, not the VM. Export the same two values there so those can be pasted
+unchanged too — in `~/.zshrc` on a current macOS, `~/.bashrc` on Linux:
+
+```bash
+export VM_IP=192.168.1.50
+export BASE_DOMAIN=dev.yourdomain.com
+export KC_HOST="keycloak.$BASE_DOMAIN"
+export APP_HOST="app.$BASE_DOMAIN"
+export ADMIN_HOST="admin.$BASE_DOMAIN"
+```
+
+Use the identical values you set on the VM in
+[step 1.3](01-vm.md#13-record-your-settings). This guide marks which side each
+command runs on.
+
+## 2.3 Make the names resolve on your LAN
 
 Pick whichever matches your network. All three produce the same result: the
 three names resolve to `$VM_IP` for every device on the LAN, **including the
@@ -112,19 +130,27 @@ option A instead.
 Works, but must be repeated on every machine that browses the apps — **and pods
 never see it**, so [step 11](11-keycloak.md) will need the CoreDNS override.
 
-On your workstation and on the VM:
+Run this on your workstation **and** on the VM — the variables from 2.2 and 1.3
+must be set in the shell you run it from, because the heredoc expands them:
 
 ```bash
 sudo tee -a /etc/hosts <<EOF
-192.168.1.50  keycloak.dev.yourdomain.com
-192.168.1.50  app.dev.yourdomain.com
-192.168.1.50  admin.dev.yourdomain.com
+$VM_IP  $KC_HOST
+$VM_IP  $APP_HOST
+$VM_IP  $ADMIN_HOST
 EOF
 ```
 
+```bash
+tail -3 /etc/hosts
+```
+
+Confirm the three lines carry a real address and real names — a line reading
+just a bare hostname means the variables were not set.
+
 </details>
 
-## 2.3 Verify — from both the VM and your workstation
+## 2.4 Verify — from both the VM and your workstation
 
 On the **VM**:
 
@@ -135,9 +161,7 @@ for h in "$KC_HOST" "$APP_HOST" "$ADMIN_HOST"; do printf '%-40s %s\n' "$h" "$(ge
 On your **workstation**:
 
 ```bash
-dig +short keycloak.dev.yourdomain.com
-dig +short app.dev.yourdomain.com
-dig +short admin.dev.yourdomain.com
+for h in "$KC_HOST" "$APP_HOST" "$ADMIN_HOST"; do printf '%-40s %s\n' "$h" "$(dig +short "$h")"; done
 ```
 
 All six must return the VM's address.
@@ -147,7 +171,7 @@ All six must return the VM's address.
 > cluster forwards to the VM's resolver, so this is what will let pods reach
 > Keycloak in [step 11](11-keycloak.md).
 
-## 2.4 A DNS API token for the certificate
+## 2.5 A DNS API token for the certificate
 
 [Step 05](05-tls.md) proves domain control by writing a temporary `_acme-challenge`
 TXT record, so it needs API access to wherever `$BASE_DOMAIN` is hosted. Nothing

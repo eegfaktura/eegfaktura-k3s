@@ -41,10 +41,10 @@ metadata:
 spec:
   ingressClassName: traefik
   tls:
-    - hosts: [app.dev.yourdomain.com]
+    - hosts: [app.${BASE_DOMAIN}]
       secretName: eegfaktura-tls
   rules:
-    - host: app.dev.yourdomain.com
+    - host: app.${BASE_DOMAIN}
       http:
         paths:
           - {path: /api, pathType: Prefix, backend: {service: {name: eegfaktura-backend, port: {number: 9080}}}}
@@ -59,10 +59,10 @@ metadata:
 spec:
   ingressClassName: traefik
   tls:
-    - hosts: [app.dev.yourdomain.com]
+    - hosts: [app.${BASE_DOMAIN}]
       secretName: eegfaktura-tls
   rules:
-    - host: app.dev.yourdomain.com
+    - host: app.${BASE_DOMAIN}
       http:
         paths:
           - {path: /energystore, pathType: Prefix, backend: {service: {name: eegfaktura-energystore, port: {number: 8080}}}}
@@ -78,10 +78,10 @@ metadata:
 spec:
   ingressClassName: traefik
   tls:
-    - hosts: [app.dev.yourdomain.com]
+    - hosts: [app.${BASE_DOMAIN}]
       secretName: eegfaktura-tls
   rules:
-    - host: app.dev.yourdomain.com
+    - host: app.${BASE_DOMAIN}
       http:
         paths:
           - {path: /filestore, pathType: Prefix, backend: {service: {name: eegfaktura-filestore, port: {number: 8080}}}}
@@ -96,10 +96,10 @@ metadata:
 spec:
   ingressClassName: traefik
   tls:
-    - hosts: [app.dev.yourdomain.com]
+    - hosts: [app.${BASE_DOMAIN}]
       secretName: eegfaktura-tls
   rules:
-    - host: app.dev.yourdomain.com
+    - host: app.${BASE_DOMAIN}
       http:
         paths:
           - {path: /cash, pathType: Prefix, backend: {service: {name: eegfaktura-billing, port: {number: 8080}}}}
@@ -110,10 +110,10 @@ metadata: {name: app-root, namespace: eegfaktura}
 spec:
   ingressClassName: traefik
   tls:
-    - hosts: [app.dev.yourdomain.com]
+    - hosts: [app.${BASE_DOMAIN}]
       secretName: eegfaktura-tls
   rules:
-    - host: app.dev.yourdomain.com
+    - host: app.${BASE_DOMAIN}
       http:
         paths:
           - {path: /, pathType: Prefix, backend: {service: {name: eegfaktura-web, port: {number: 8080}}}}
@@ -128,10 +128,10 @@ metadata:
 spec:
   ingressClassName: traefik
   tls:
-    - hosts: [admin.dev.yourdomain.com]
+    - hosts: [admin.${BASE_DOMAIN}]
       secretName: eegfaktura-tls
   rules:
-    - host: admin.dev.yourdomain.com
+    - host: admin.${BASE_DOMAIN}
       http:
         paths:
           - {path: /eeg,   pathType: Prefix, backend: {service: {name: eegfaktura-admin-backend, port: {number: 8085}}}}
@@ -144,10 +144,10 @@ metadata: {name: admin-root, namespace: eegfaktura}
 spec:
   ingressClassName: traefik
   tls:
-    - hosts: [admin.dev.yourdomain.com]
+    - hosts: [admin.${BASE_DOMAIN}]
       secretName: eegfaktura-tls
   rules:
-    - host: admin.dev.yourdomain.com
+    - host: admin.${BASE_DOMAIN}
       http:
         paths:
           - {path: /, pathType: Prefix, backend: {service: {name: eegfaktura-admin-web, port: {number: 8080}}}}

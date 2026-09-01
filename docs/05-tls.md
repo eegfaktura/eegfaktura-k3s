@@ -135,7 +135,7 @@ needs — no concatenation step.
 So that typing `http://` never produces the silent spinner described above:
 
 ```bash
-kubectl apply -f "$K8S"/01-traefik-redirect.yaml
+kubectl apply -f "$MANIFESTS"/01-traefik-redirect.yaml
 ```
 
 ```bash

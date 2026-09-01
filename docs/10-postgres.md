@@ -44,11 +44,11 @@ Validate against the live API first — `initdb` runs only once, so a typo caugh
 now is much cheaper than one caught after boot:
 
 ```bash
-kubectl apply -f "$K8S"/10-postgres.yaml --dry-run=server
+kubectl apply -f "$MANIFESTS"/10-postgres.yaml --dry-run=server
 ```
 
 ```bash
-kubectl apply -f "$K8S"/10-postgres.yaml
+kubectl apply -f "$MANIFESTS"/10-postgres.yaml
 ```
 
 ```bash
@@ -124,7 +124,7 @@ creates its own tables on first start.
 <summary>Starting over — this destroys all data</summary>
 
 ```bash
-kubectl delete -f "$K8S"/10-postgres.yaml
+kubectl delete -f "$MANIFESTS"/10-postgres.yaml
 kubectl delete pvc postgres-data
 ```
 

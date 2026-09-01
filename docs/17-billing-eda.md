@@ -79,7 +79,7 @@ kubectl get configmap eda-config -o jsonpath='{.data.application\.conf}' | grep 
 ## 17.4 Apply
 
 ```bash
-kubectl apply -f "$K8S"/60-billing.yaml -f "$K8S"/61-eda.yaml
+kubectl apply -f "$MANIFESTS"/60-billing.yaml -f "$MANIFESTS"/61-eda.yaml
 ```
 
 ```bash

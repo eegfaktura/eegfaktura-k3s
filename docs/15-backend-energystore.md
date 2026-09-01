@@ -118,7 +118,7 @@ kubectl get configmap
 ## 15.5 Apply
 
 ```bash
-kubectl apply -f "$K8S"/40-backend.yaml -f "$K8S"/41-energystore.yaml
+kubectl apply -f "$MANIFESTS"/40-backend.yaml -f "$MANIFESTS"/41-energystore.yaml
 ```
 
 ```bash

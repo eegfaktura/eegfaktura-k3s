@@ -22,7 +22,7 @@ spec:
           imagePullPolicy: Always
           env:
             - {name: POSTFIX_HOSTNAME,    value: "eegfaktura-postfix"}
-            - {name: POSTFIX_MYDOMAIN,    value: "dev.yourdomain.com"}
+            - {name: POSTFIX_MYDOMAIN,    value: "${BASE_DOMAIN}"}
             # k3s default pod CIDR — senders inside the cluster are trusted.
             # verify: kubectl get node -o jsonpath='{.items[0].spec.podCIDR}'
             - {name: POSTFIX_MYNETWORK,   value: "10.42.0.0/16"}

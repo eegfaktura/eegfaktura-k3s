@@ -14,7 +14,7 @@ spec:
           image: localhost:5000/eeg-registration-frontend:dev
           imagePullPolicy: Always
           env:
-            - {name: KEYCLOAK_URL,       value: "https://keycloak.dev.yourdomain.com"}
+            - {name: KEYCLOAK_URL,       value: "https://keycloak.${BASE_DOMAIN}"}
             - {name: KEYCLOAK_REALM,     value: "EEGFaktura"}
             - {name: KEYCLOAK_CLIENT_ID, value: "at.ourproject.vfeeg.admin"}
           ports:

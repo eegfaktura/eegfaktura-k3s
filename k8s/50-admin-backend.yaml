@@ -27,7 +27,7 @@ spec:
             - {name: KEYCLOAK_CONFIG_JSON, value: "/run/secrets/eegfaktura-keycloak-json"}
             # must be the public hostname: used for BOTH the JWKS fetch and
             # issuer validation, so it has to match the `iss` in browser tokens
-            - {name: KEYCLOAK_URL,      value: "https://keycloak.dev.yourdomain.com"}
+            - {name: KEYCLOAK_URL,      value: "https://keycloak.${BASE_DOMAIN}"}
             - {name: KEYCLOAK_REALM,    value: "EEGFaktura"}
             - {name: KEYCLOAK_AUDIENCE, value: "at.ourproject.vfeeg.admin"}
             - name: KEYCLOAK_ADMIN_CLI_SECRET

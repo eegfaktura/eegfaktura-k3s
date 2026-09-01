@@ -185,7 +185,7 @@ curl -s http://localhost:5000/v2/_catalog | jq
 `vfeeg-web` and `eeg-registration-frontend` must both be listed.
 
 ```bash
-kubectl apply -f "$K8S"/70-web.yaml -f "$K8S"/71-admin-web.yaml
+kubectl apply -f "$MANIFESTS"/70-web.yaml -f "$MANIFESTS"/71-admin-web.yaml
 ```
 
 ```bash

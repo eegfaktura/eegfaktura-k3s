@@ -30,7 +30,7 @@ so no credential is written in the manifest.
 ## 11.2 Deploy
 
 ```bash
-kubectl apply -f "$K8S"/20-keycloak.yaml
+kubectl apply -f "$MANIFESTS"/20-keycloak.yaml
 ```
 
 ```bash
@@ -122,7 +122,7 @@ It must print **exactly** the same issuer as 11.3.
 First find out which half is broken:
 
 ```bash
-kubectl run dnstest --rm -it --restart=Never --image=busybox:1.36 -- nslookup keycloak.dev.yourdomain.com
+kubectl run dnstest --rm -it --restart=Never --image=busybox:1.36 -- nslookup "$KC_HOST"
 ```
 
 **`NXDOMAIN`** — pods cannot resolve the name. CoreDNS forwards to the VM's
@@ -131,13 +131,13 @@ resolver, which does not know it. This is what happens if you used the
 reads those entries. Give CoreDNS the mapping directly:
 
 ```bash
-kubectl apply -f "$K8S"/05-coredns-custom.yaml
+kubectl apply -f "$MANIFESTS"/05-coredns-custom.yaml
 kubectl -n kube-system rollout restart deployment/coredns
 kubectl -n kube-system rollout status deployment/coredns
 ```
 
 ```bash
-kubectl run dnstest --rm -it --restart=Never --image=busybox:1.36 -- nslookup keycloak.dev.yourdomain.com
+kubectl run dnstest --rm -it --restart=Never --image=busybox:1.36 -- nslookup "$KC_HOST"
 ```
 
 It must now return `$VM_IP`. Then re-run the curl above.

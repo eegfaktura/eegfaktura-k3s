@@ -8,6 +8,9 @@ kubeconfig
 *.crt
 lego/
 
+# rendered manifests — carry your real hostnames
+k8s.local/
+
 # local tooling
 .DS_Store
 .idea/

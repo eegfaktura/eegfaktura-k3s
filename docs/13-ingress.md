@@ -86,7 +86,7 @@ kubectl get crd | grep -i middleware
 ```
 
 ```bash
-kubectl apply -f "$K8S"/90-ingress.yaml
+kubectl apply -f "$MANIFESTS"/90-ingress.yaml
 ```
 
 ```bash

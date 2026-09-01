@@ -29,7 +29,7 @@ spec:
             - {name: KC_DB_URL, value: "jdbc:postgresql://eegfaktura-postgresql:5432/keycloak"}
 
             # --- the hostname that must match everywhere ---
-            - {name: KC_HOSTNAME,        value: "https://keycloak.dev.yourdomain.com"}
+            - {name: KC_HOSTNAME,        value: "https://keycloak.${BASE_DOMAIN}"}
             - {name: KC_HOSTNAME_STRICT, value: "false"}
             - {name: KC_HTTP_ENABLED,    value: "true"}
             - {name: KC_PROXY_HEADERS,   value: "xforwarded"}
@@ -77,10 +77,10 @@ metadata:
 spec:
   ingressClassName: traefik
   tls:
-    - hosts: [keycloak.dev.yourdomain.com]
+    - hosts: [keycloak.${BASE_DOMAIN}]
       secretName: eegfaktura-tls
   rules:
-    - host: keycloak.dev.yourdomain.com
+    - host: keycloak.${BASE_DOMAIN}
       http:
         paths:
           - path: /

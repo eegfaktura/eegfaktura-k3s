@@ -1,14 +1,14 @@
 # Step 04 — The repo and your settings
 
 The manifests are real files in this repository, not snippets to copy out of
-markdown. Clone it onto the VM once; every later step applies files from
-`$K8S`.
+markdown. Clone it onto the VM once, render your hostnames into it, and every
+later step applies files from `$MANIFESTS`.
 
 ## 4.1 Clone
 
 ```bash
 cd ~
-git clone https://github.com/<owner>/eegfaktura-k3s.git
+git clone https://github.com/<owner>/eegfaktura-k3s.git eegfaktura-k3s
 cd ~/eegfaktura-k3s
 ls k8s/
 ```
@@ -16,21 +16,24 @@ ls k8s/
 Use your own fork if you intend to keep changes (see [4.5](#45-keeping-your-changes)),
 or clone this repository directly to follow along.
 
-`$K8S` was set to `~/eegfaktura-k3s/k8s` in [step 01](01-vm.md#13-record-your-settings).
-Confirm it points at what you just cloned:
+> [!NOTE]
+> The target directory is named explicitly, because `$MANIFESTS` points at
+> `~/eegfaktura-k3s/k8s.local`. If your fork or mirror has a different
+> repository name, this keeps the path right without editing `~/.bashrc`.
 
 ```bash
-ls "$K8S"/*.yaml | wc -l      # 15
+ls k8s/*.yaml | wc -l      # 15
 ```
 
 ## 4.2 What is in here
 
 ```
-docs/       this guide, one file per step, plus known-problems.md
-k8s/        Kubernetes manifests, numbered like the upstream platform repo
+docs/        this guide, one file per step, plus known-problems.md
+k8s/         manifest templates — tracked in git, never edited
+k8s.local/   the rendered copies you apply — generated, git-ignored
 ```
 
-The manifest numbers are independent of the step numbers — they follow the
+The manifest numbers are independent of the step numbers; they follow the
 convention the upstream deployment repo uses, where each service owns one
 numbered file.
 
@@ -47,34 +50,73 @@ numbered file.
 | `70-web.yaml`, `71-admin-web.yaml` | 18 |
 | `90-ingress.yaml` | 13 |
 
-## 4.3 Substitute your domain and address
+## 4.3 Render the manifests
 
-The manifests ship with the placeholders `dev.yourdomain.com` and
-`192.168.1.50`. Replace both in one pass:
+Seven of the fifteen manifests reference your domain or address, as
+`${BASE_DOMAIN}` and `${VM_IP}`:
+
+```bash
+grep -rl 'BASE_DOMAIN\|VM_IP' k8s/
+```
+
+`envsubst` expands them into `k8s.local/`, which is what `$MANIFESTS` points at:
 
 ```bash
 cd ~/eegfaktura-k3s
-grep -rl -e 'dev\.yourdomain\.com' -e '192\.168\.1\.50' k8s/ | xargs -r sed -i "s/dev\.yourdomain\.com/$BASE_DOMAIN/g; s/192\.168\.1\.50/$VM_IP/g"
+mkdir -p "$MANIFESTS"
+for f in k8s/*.yaml; do
+  envsubst '$BASE_DOMAIN $VM_IP' < "$f" > "$MANIFESTS/$(basename "$f")"
+done
 ```
 
-Verify nothing was missed, and that the result is what you expect:
+> [!IMPORTANT]
+> **The quoted variable list is not optional.** Bare `envsubst` expands *every*
+> `${...}` it sees, including `${MAIL_HOST}` in a comment in `60-billing.yaml`
+> that documents why billing refuses to boot without it — it would be silently
+> replaced with nothing. Naming the two variables confines the substitution to
+> them. The single quotes keep the shell from expanding the list before
+> `envsubst` reads it.
+
+Check the result:
 
 ```bash
-grep -rn "yourdomain\.com\|192\.168\.1\.50" k8s/ | grep -v example.com
+grep -rn 'BASE_DOMAIN\|VM_IP' "$MANIFESTS"/
 ```
 
 ```bash
-grep -rho "[a-z]*\.$BASE_DOMAIN" k8s/ | sort -u
+grep -rho "[a-z]*\.$BASE_DOMAIN" "$MANIFESTS"/ | sort -u
 ```
 
-The first command must print **nothing**. The second must print exactly your
-three hostnames.
+The first must print **nothing** — an unexpanded `${BASE_DOMAIN}` means the
+variable was not set when you rendered. The second must print exactly your three
+hostnames; blank output, or names beginning with a bare dot, means
+`BASE_DOMAIN` was empty.
 
-> [!NOTE]
-> `smtp.example.com` and `relay-user@example.com` in `31-postfix.yaml` are
-> deliberately left alone — they are the upstream mail-relay placeholders, and
-> nothing in this guide needs working outbound mail. See
-> [step 14](14-support-services.md).
+> [!TIP]
+> **Re-render after `git pull`, and after any change to `BASE_DOMAIN` or
+> `VM_IP`.** It is idempotent, so re-running it is always safe:
+> ```bash
+> cd ~/eegfaktura-k3s && for f in k8s/*.yaml; do envsubst '$BASE_DOMAIN $VM_IP' < "$f" > "$MANIFESTS/$(basename "$f")"; done
+> ```
+> Rendering alone changes nothing in the cluster — re-apply the affected
+> manifest to make a change take effect.
+
+<details>
+<summary>Why render, rather than edit the manifests in place</summary>
+
+Editing `k8s/` directly works, and for a one-off cluster it is perfectly fine.
+Rendering buys three things:
+
+- **`git pull` stays a fast-forward.** In-place edits touch seven tracked files,
+  so every upstream change becomes a merge conflict in files you did not mean to
+  own.
+- **One source of truth.** The domain exists in `~/.bashrc` and nowhere else. In
+  the in-place approach it lives in the shell *and* in the manifests, and the two
+  can drift — usually noticed as a Keycloak issuer mismatch three steps later.
+- **`k8s.local/` is git-ignored**, so a rendered file can never be committed with
+  your real hostnames in it.
+
+</details>
 
 ## 4.4 Namespace
 
@@ -99,30 +141,29 @@ copy was skipped.
 
 ## 4.5 Keeping your changes
 
-The substituted manifests are now local modifications:
-
 ```bash
 git status --short
 ```
 
-They are yours to keep. If you plan to push this back to your own fork, commit
-them on a branch of your own rather than on `main`, so pulling upstream fixes
-stays a fast-forward:
+This should show **nothing but** `k8s.local/` being ignored — the tracked
+templates are untouched, which is the point of 4.3. If you do change a template
+(different resource limits, an extra service), commit it on a branch of your own
+so pulling upstream fixes stays a fast-forward:
 
 ```bash
 git switch -c my-cluster
-git commit -am "point manifests at $BASE_DOMAIN"
 ```
 
 > [!CAUTION]
 > Never commit the password files or certificates produced in steps 05 and 09.
-> `.gitignore` already excludes the usual suspects, but the passwords live in a
-> clone of a *different* repository — see [step 09](09-namespace-and-secrets.md).
+> `.gitignore` covers `k8s.local/`, keys and certificates here — but the
+> passwords live in a clone of a *different* repository, so see
+> [step 09](09-namespace-and-secrets.md).
 
 ## Done when
 
-- `ls "$K8S"` lists 15 manifests
-- No `yourdomain.com` or `192.168.1.50` remains in `k8s/`
+- `ls "$MANIFESTS"` lists 15 rendered manifests
+- No `${BASE_DOMAIN}` or `${VM_IP}` remains unexpanded in `$MANIFESTS`
 - The current context's namespace is `eegfaktura`
 
 → [Step 05 — TLS](05-tls.md)

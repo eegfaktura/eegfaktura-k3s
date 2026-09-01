@@ -25,7 +25,7 @@ curl -s http://localhost:5000/v2/_catalog | jq
 ## 14.2 Apply
 
 ```bash
-kubectl apply -f "$K8S"/30-mosquitto.yaml -f "$K8S"/31-postfix.yaml -f "$K8S"/32-filestore.yaml
+kubectl apply -f "$MANIFESTS"/30-mosquitto.yaml -f "$MANIFESTS"/31-postfix.yaml -f "$MANIFESTS"/32-filestore.yaml
 ```
 
 ```bash

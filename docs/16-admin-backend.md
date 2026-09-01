@@ -82,7 +82,7 @@ The manifest reads it from the `eegfaktura-admin-cli` Secret created in
 ## 16.3 Apply
 
 ```bash
-kubectl apply -f "$K8S"/50-admin-backend.yaml
+kubectl apply -f "$MANIFESTS"/50-admin-backend.yaml
 ```
 
 ```bash

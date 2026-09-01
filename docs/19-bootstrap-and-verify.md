@@ -128,7 +128,7 @@ They must be on the machine running the **browser**. If that is not the VM,
 either copy them across or clone the compose repo locally:
 
 ```bash
-scp <user>@<vm-ip>:'~/src/eegfaktura-docker-compose/data/*.xlsx' .
+scp <user>@"$VM_IP":'~/src/eegfaktura-docker-compose/data/*.xlsx' .
 ```
 
 Open `https://app.dev.yourdomain.com`, log in with the credentials from 19.3,
