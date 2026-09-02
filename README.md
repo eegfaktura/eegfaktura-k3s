@@ -50,7 +50,8 @@ it printed.
 | 20 | [Build pipeline](docs/20-ci-pipeline.md) | recreate the GitHub Actions flow |
 
 After the twenty steps: [updates/](updates/README.md) — pulling a branch or a
-release into a cluster that is already running, one service at a time.
+release into a cluster that is already running. One page per service, plus
+[a runbook for updating all twelve at once](updates/complete-update.md).
 
 Background, if you want it: [docs/architecture.md](docs/architecture.md) —
 what is being built and why it is shaped this way.

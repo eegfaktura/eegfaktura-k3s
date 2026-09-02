@@ -26,20 +26,27 @@ Every service takes the same four moves:
 
 | Repo | Image | Deployment | Container | Rebuild is |
 |---|---|---|---|---|
-| `eegfaktura-postgresql` | `eegfaktura-postgresql` | `eegfaktura-postgresql` | `postgres` | plain |
-| `eegfaktura-keycloak` | `eegfaktura-keycloak` | `eegfaktura-keycloak` | `keycloak` | plain, slow |
-| `eegfaktura-mosquitto` | `eegfaktura-mosquitto` | `eegfaktura-mosquitto` | `mosquitto` | plain |
-| `eegfaktura-postfix` | `eegfaktura-postfix` | `eegfaktura-postfix` | `postfix` | plain |
-| `eegfaktura-filestore` | `eegfaktura-filestore` | `eegfaktura-filestore` | `filestore` | plain |
-| `eegfaktura-backend` | `vfeeg-backend` | `eegfaktura-backend` | `backend` | plain (codegen is in the Dockerfile) |
-| `eegfaktura-energystore` | `energy-store` | `eegfaktura-energystore` | `energystore` | **codegen first** |
-| `eegfaktura-billing` | `eegfaktura-billing` | `eegfaktura-billing` | `billing` | plain (Maven is in the Dockerfile) |
-| `eegfaktura-admin-backend` | `eeg-registration-backend` | `eegfaktura-admin-backend` | `admin-backend` | **sbt, then retag** |
-| `eegfaktura-eda-xp` | `eegfaktura-kep` | `eegfaktura-eda` | `eda` | **sbt, then retag** |
-| `eegfaktura-web` | `vfeeg-web` | `eegfaktura-web` | `web` | **pnpm build first** |
-| `eegfaktura-admin` | `eeg-registration-frontend` | `eegfaktura-admin-web` | `admin-web` | **npm build first** |
+| [`eegfaktura-postgresql`](eegfaktura-postgresql.md) | `eegfaktura-postgresql` | `eegfaktura-postgresql` | `postgres` | plain |
+| [`eegfaktura-keycloak`](eegfaktura-keycloak.md) | `eegfaktura-keycloak` | `eegfaktura-keycloak` | `keycloak` | plain, slow |
+| [`eegfaktura-mosquitto`](eegfaktura-mosquitto.md) | `eegfaktura-mosquitto` | `eegfaktura-mosquitto` | `mosquitto` | plain |
+| [`eegfaktura-postfix`](eegfaktura-postfix.md) | `eegfaktura-postfix` | `eegfaktura-postfix` | `postfix` | plain |
+| [`eegfaktura-filestore`](eegfaktura-filestore.md) | `eegfaktura-filestore` | `eegfaktura-filestore` | `filestore` | plain |
+| [`eegfaktura-backend`](eegfaktura-backend.md) | `vfeeg-backend` | `eegfaktura-backend` | `backend` | plain (codegen is in the Dockerfile) |
+| [`eegfaktura-energystore`](eegfaktura-energystore.md) | `energy-store` | `eegfaktura-energystore` | `energystore` | **codegen first** |
+| [`eegfaktura-billing`](eegfaktura-billing.md) | `eegfaktura-billing` | `eegfaktura-billing` | `billing` | plain (Maven is in the Dockerfile) |
+| [`eegfaktura-admin-backend`](eegfaktura-admin-backend.md) | `eeg-registration-backend` | `eegfaktura-admin-backend` | `admin-backend` | **sbt, then retag** |
+| [`eegfaktura-eda-xp`](eegfaktura-eda-xp.md) | `eegfaktura-kep` | `eegfaktura-eda` | `eda` | **sbt, then retag** |
+| [`eegfaktura-web`](eegfaktura-web.md) | `vfeeg-web` | `eegfaktura-web` | `web` | **pnpm build first** |
+| [`eegfaktura-admin`](eegfaktura-admin.md) | `eeg-registration-frontend` | `eegfaktura-admin-web` | `admin-web` | **npm build first** |
 
-All images live at `localhost:5000/<image>:dev`.
+All images live at `localhost:5000/<image>:dev`. **Each repo has its own page**
+with the commands already filled in — no placeholders to substitute — including
+a single block that does the whole update in one paste. The sections below are
+the shared reasoning behind them.
+
+Updating everything at once has its own runbook:
+**[complete-update.md](complete-update.md)** — preflight, rollback tagging, all
+twelve builds, the rollout in dependency order, and the way back.
 
 ## 1. Fetch
 
@@ -290,6 +297,9 @@ not always the deployment name. This is the same reasoning as
 consistent.
 
 ## 6. Updating several services at once
+
+[complete-update.md](complete-update.md) is this section made executable — the
+loops, the safety net and the verification, in order. The reasoning is here.
 
 Order matters when the update spans repos:
 
